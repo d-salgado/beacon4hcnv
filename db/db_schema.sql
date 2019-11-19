@@ -12,8 +12,7 @@ DROP TABLE IF EXISTS public.beacon_data_table;
 DROP TABLE IF EXISTS public.beacon_sample_table;
 DROP TABLE IF EXISTS public.beacon_dataset_table;
 
-CREATE TABLE public.beacon_dataset_table
-(
+CREATE TABLE public.beacon_dataset_table (
     id SERIAL NOT NULL PRIMARY KEY,
     stable_id character varying(50) NOT NULL,
     description character varying(800),
@@ -27,20 +26,20 @@ CREATE TABLE public.beacon_dataset_table
 
 CREATE TABLE public.beacon_data_table (
     id SERIAL NOT NULL PRIMARY KEY,
-    dataset_id integer NOT NULL REFERENCES public.beacon_dataset_table (id),
+    --dataset_id integer NOT NULL REFERENCES public.beacon_dataset_table (id),
     chromosome character varying(2) NOT NULL,
-    variant_id text,
+    rs_id text, -- renaming of variant_id to rs_id
     reference text NOT NULL,
-    alternate text NOT NULL,
+    alternate text NOT NULL, -- CNVs do not have alternate bases //we keep it for backward compatibilty currently the CNV  
     start integer NOT NULL,
     "end" integer,
-    type character varying(10),
-    sv_length integer,
-    variant_cnt integer,
-    call_cnt integer,
-    sample_cnt integer,
-	matching_sample_cnt integer,
-    frequency decimal
+    type character varying(10), -- SNP, del, ins, ... CNV
+    sv_length integer
+    --variant_cnt integer,
+    --call_cnt integer,
+    --sample_cnt integer,
+	--matching_sample_cnt integer,
+    --frequency decimal,
 
 );
 
@@ -53,6 +52,11 @@ CREATE TABLE public.beacon_dataset_sample_table (
 	id serial NOT NULL PRIMARY KEY,
 	dataset_id int NOT NULL REFERENCES beacon_dataset_table(id),
 	sample_id int NOT NULL REFERENCES beacon_sample_table(id),
+	genotype text,
+	read_depth integer,
+	genotype_likelihood decimal,
+	copy_number_level integer,
+	extra_info json,
 	UNIQUE (dataset_id, sample_id)
 );
 
@@ -135,21 +139,36 @@ CREATE TABLE beacon_dataset_consent_code_table (
 	PRIMARY KEY (dataset_id, consent_code_id)
 );
 
+--CREATE TABLE beacon_data_computed_properties (
+--	variant_id integer NOT NULL REFERENCES beacon_data_table(id),
+--	variant_cnt int,
+--	call_cnt int,
+--	sample_cnt int,
+--
+--	version text,
+--	PRIMARY KEY (dataset_id, consent_code_id)
+--);
+
 ---------------------------
 ---------- VIEWS ----------
 ---------------------------
 -- DROP VIEW public.beacon_data_summary;
-CREATE OR REPLACE VIEW public.beacon_data_summary AS
-SELECT dat.id AS dataset_id,
-	d.variant_cnt,
-	d.call_cnt,
-	d.sample_cnt,
-	COALESCE(COUNT(DISTINCT d_sam.sample_id),NULL) AS matching_sample_cnt,
-	d.frequency
-FROM beacon_data_table d
-INNER JOIN beacon_dataset_table dat ON dat.id = d.dataset_id
-LEFT JOIN beacon_data_sample_table d_sam ON d_sam.data_id=d.id
-GROUP BY dat.id, d.variant_cnt, d.call_cnt, d.sample_cnt, d.frequency;
+
+--DS: We have commented this view due to the removal of dataset_id in beacon_data_table
+-- Need refactoring to accomadate our new tables
+
+
+--CREATE OR REPLACE VIEW public.beacon_data_summary AS
+--SELECT dat.id AS dataset_id,
+--	d.variant_cnt,
+--	d.call_cnt,
+--	d.sample_cnt,
+--	COALESCE(COUNT(DISTINCT d_sam.sample_id),NULL) AS matching_sample_cnt,
+--	d.frequency
+--FROM beacon_data_table d
+--INNER JOIN beacon_dataset_table dat ON dat.id = d.dataset_id
+--LEFT JOIN beacon_data_sample_table d_sam ON d_sam.data_id=d.id
+--GROUP BY dat.id, d.variant_cnt, d.call_cnt, d.sample_cnt, d.frequency;
 
 CREATE OR REPLACE VIEW beacon_dataset AS
 SELECT
