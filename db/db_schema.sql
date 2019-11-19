@@ -25,7 +25,7 @@ CREATE TABLE public.beacon_dataset_table (
 );
 
 CREATE TABLE public.beacon_data_table (
-    id SERIAL NOT NULL PRIMARY KEY,
+    id text NOT NULL PRIMARY KEY,
     --dataset_id integer NOT NULL REFERENCES public.beacon_dataset_table (id),
     chromosome character varying(2) NOT NULL,
     rs_id text, -- renaming of variant_id to rs_id
@@ -44,25 +44,25 @@ CREATE TABLE public.beacon_data_table (
 );
 
 CREATE TABLE public.beacon_sample_table (
-	id serial NOT NULL PRIMARY KEY,
+	id text NOT NULL PRIMARY KEY,
 	stable_id text NOT NULL
 );
 
 CREATE TABLE public.beacon_dataset_sample_table (
 	id serial NOT NULL PRIMARY KEY,
 	dataset_id int NOT NULL REFERENCES beacon_dataset_table(id),
-	sample_id int NOT NULL REFERENCES beacon_sample_table(id),
+	sample_id text NOT NULL REFERENCES beacon_sample_table(id),
+	UNIQUE (dataset_id, sample_id)
+);
+
+CREATE TABLE public.beacon_data_sample_table (
+	data_id text NOT NULL REFERENCES beacon_data_table(id),
+	sample_id text NOT NULL REFERENCES beacon_sample_table(id),
 	genotype text,
 	read_depth integer,
 	genotype_likelihood decimal,
 	copy_number_level integer,
 	extra_info json,
-	UNIQUE (dataset_id, sample_id)
-);
-
-CREATE TABLE public.beacon_data_sample_table (
-	data_id int NOT NULL REFERENCES beacon_data_table(id),
-	sample_id int NOT NULL REFERENCES beacon_sample_table(id),
 	PRIMARY KEY (data_id, sample_id)
 );
 
