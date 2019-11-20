@@ -11,6 +11,9 @@ DROP TABLE IF EXISTS public.beacon_dataset_sample_table CASCADE;
 DROP TABLE IF EXISTS public.beacon_data_table;
 DROP TABLE IF EXISTS public.beacon_sample_table;
 DROP TABLE IF EXISTS public.beacon_dataset_table;
+DROP FUNCTION IF EXISTS count_variants(integer);
+DROP FUNCTION IF EXISTS count_samples(integer);
+DROP FUNCTION IF EXISTS count_calls(integer);
 
 CREATE TABLE public.beacon_dataset_table (
     id SERIAL NOT NULL PRIMARY KEY,
@@ -30,7 +33,7 @@ CREATE TABLE public.beacon_data_table (
     chromosome character varying(2) NOT NULL,
     rs_id text, -- renaming of variant_id to rs_id
     reference text NOT NULL,
-    alternate text NOT NULL, -- CNVs do not have alternate bases //we keep it for backward compatibilty currently the CNV  
+    alternate text NOT NULL, -- CNVs do not have alternate bases //we keep it for backward compatibilty currently the CNV
     start integer NOT NULL,
     "end" integer,
     type character varying(10), -- SNP, del, ins, ... CNV
@@ -196,3 +199,60 @@ FROM beacon_dataset_consent_code_table dc
 INNER JOIN consent_code_table code ON code.id=dc.consent_code_id
 INNER JOIN consent_code_category_table cat ON cat.id=code.category_id
 ORDER BY dc.dataset_id, cat.id, code.id;
+
+
+---------------------------
+---------- FUNCTIONS ------
+---------------------------
+
+-- Count the variants in the given dataset.
+-- Returns NULL if dataset does not exist
+CREATE FUNCTION count_variants(id_of_dataset integer) RETURNS integer
+AS $$
+DECLARE
+  the_count INTEGER;
+BEGIN
+  SELECT count(*) INTO the_count FROM BEACON_DATA_SAMPLE_TABLE m2s  -- mutation to sample
+    JOIN BEACON_DATASET_SAMPLE_TABLE d2s  -- dataset to sample
+         ON m2s.sample_id=d2s.sample_id
+    WHERE dataset_id=id_of_dataset
+    GROUP BY dataset_id;
+
+  RETURN the_count;
+END; $$
+LANGUAGE PLPGSQL;
+
+-- Count the samples in the given dataset
+-- Returns NULL if dataset does not exist
+CREATE FUNCTION count_samples(id_of_dataset integer) RETURNS integer
+AS $$
+DECLARE
+  the_count INTEGER;
+BEGIN
+  SELECT count(*) INTO the_count FROM BEACON_SAMPLE_TABLE samples
+    JOIN BEACON_DATASET_SAMPLE_TABLE d2s  -- dataset to sample
+         ON samples.id=d2s.sample_id
+    WHERE dataset_id=id_of_dataset
+    GROUP BY dataset_id;
+
+  RETURN the_count;
+END; $$
+LANGUAGE PLPGSQL;
+
+-- Count the calls in the given dataset
+-- Returns NULL if dataset does not exist
+CREATE FUNCTION count_calls(id_of_dataset integer) RETURNS integer
+AS $$
+DECLARE
+  the_count INTEGER;
+BEGIN
+  SELECT count(*) INTO the_count FROM BEACON_DATA_TABLE mutations
+    JOIN BEACON_DATA_SAMPLE_TABLE m2s  -- mutations to samples
+      ON mutations.id=m2s.data_id
+    JOIN BEACON_DATASET_SAMPLE_TABLE s2d -- samples to datasets
+      ON s2d.sample_id=m2s.sample_id
+      GROUP BY dataset_id;
+
+  RETURN the_count;
+END; $$
+LANGUAGE PLPGSQL;
