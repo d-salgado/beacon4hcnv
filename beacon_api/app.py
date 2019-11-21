@@ -229,11 +229,15 @@ async def beacon_post_region(request):
 
 async def initialize(app):
     """Spin up DB a connection pool with the HTTP server."""
-    # TO DO !!!
-    # check if table and Database exist
-    # and maybe exit gracefully or at least wait for a bit
     LOG.debug('Create PostgreSQL connection pool.')
     app['pool'] = await init_db_pool()
+    LOG.debug("Testing the DB connection.")
+    db_pool = app['pool']
+    async with db_pool.acquire(timeout=180) as connection:
+        query = """SELECT 1;
+                    """
+        statement = await connection.prepare(query)
+        db_response =  await statement.fetch()
     set_cors(app)
 
 
