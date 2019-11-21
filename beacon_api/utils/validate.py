@@ -193,7 +193,7 @@ def validate(endpoint):
                 further_validation_query(request, obj)
             elif endpoint == "genomic_snp":
                 LOG.debug("The genomic_snp endpoint does not require further validation")
-            elif endpoint == "genomic_region":
+            elif endpoint == "genomic_region" or endpoint == "cnv":
                 start = obj.get("start")
                 end = obj.get("end")
                 if end < start:

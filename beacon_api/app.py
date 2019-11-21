@@ -25,6 +25,7 @@ from .api.genomic_snp import snp_request_handler
 from .api.genomic_region import region_request_handler
 from .api.access_levels import access_levels_terms_handler
 from .api.services import services_handler
+from .api.cnv import cnv_request_handler
 
 
 
@@ -222,6 +223,31 @@ async def beacon_post_region(request):
     query_response = await region_request_handler(db_pool, processed_request, request)
     return web.json_response(query_response, content_type='application/json', dumps=json.dumps)
 
+# ----------------------------------------------------------------------------------------------------------------------
+#                                         CNV ENDPOINT OPERATIONS
+# ----------------------------------------------------------------------------------------------------------------------
+# These could be put under a @route.view('/query')
+
+@routes.get('/cnv')
+@validate("cnv")
+async def beacon_get_cnv(request):
+    db_pool = request.app['pool']
+    method, processed_request = await parse_request_object(request)
+    LOG.info(f"This is the {method} processed request: {processed_request}")
+    query_response = await cnv_request_handler(db_pool, processed_request, request)
+    return web.json_response(query_response, content_type='application/json', dumps=json.dumps)
+
+
+
+@routes.post('/cnv')
+@validate("cnv")
+async def beacon_post_cnv(request):
+    """Find datasets using POST endpoint."""
+    db_pool = request.app['pool']
+    method, processed_request = await parse_request_object(request)
+    LOG.info(f"This is the {method} processed request: {processed_request}")
+    query_response = await cnv_request_handler(db_pool, processed_request, request)
+    return web.json_response(query_response, content_type='application/json', dumps=json.dumps)
 
 # ----------------------------------------------------------------------------------------------------------------------
 #                                         SETUP FUNCTIONS
