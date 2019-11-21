@@ -24,7 +24,7 @@ async def init_db_pool():
 
     As we will have frequent requests to the database it is recommended to create a connection pool.
     """
-    return await asyncpg.create_pool(host=os.environ.get('DATABASE_URL', 'db'),
+    return await asyncpg.create_pool(host=os.environ.get('DATABASE_URL', 'beacon-db'),
                                      port=os.environ.get('DATABASE_PORT', '5432'),
                                      user=os.environ.get('DATABASE_USER', 'beacon_design'),
                                      password=os.environ.get('DATABASE_PASSWORD', 'beacon'),
