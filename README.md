@@ -20,4 +20,20 @@ SET variant_cnt=count_variants(id),
     sample_cnt=count_samples(id);
 ```
 
+## Docker setup
+
+Launch the following command on the beacon4hcnv folder
+
+```
+pip install docker-compose
+docker build . # To build the docker beacon image
+docker build -t beacon4hcnv:latest .
+docker-compose up -d
+docker-compose up -d db
+docker-compose up -d beacon
+docker-compose ps
+
+
+```
+
 
