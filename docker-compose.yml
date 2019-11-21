@@ -1,0 +1,45 @@
+version: '3.2'
+
+# Use the default driver (here bridge)
+networks:
+  beacon:
+
+services:
+
+  beacon:
+    environment:
+      - DATABASE_URL=db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=beacon_design
+      - DATABASE_PASSWORD=beacon
+      - DATABASE_NAME=beacon4hcnv_db
+      # - DATABASE_SCHEMA=public
+    image: beacon4hcnv:latest
+    hostname: beacon
+    container_name: beacon
+    volumes:
+      - ./beacon_api:/beacon/beacon_api
+    ports:
+      - "5050:5050"
+    networks:
+      - beacon
+    entrypoint: ['/bin/sleep','100000000']  # More than a year, This command has to be removed when the docker is ready for production
+
+      
+  db:
+    environment:
+      - POSTGRES_USER=beacon_design
+      - POSTGRES_PASSWORD=beacon
+      - POSTGRES_DB=beacon4hcnv_db
+      - PGDATA=/beacon/db-store
+    image: postgres:alpine
+    hostname: beacon-db
+    container_name: beacon-db
+    volumes:
+      - ./db/storage:/beacon/db-store
+      - ./db/beacon4hcnv_db.backup:/tmp/dump.backup
+      - ./db/entrypoint.sh:/docker-entrypoint-initdb.d/db.sh
+    ports:
+      - "5438:5432"
+    networks:
+      - beacon
