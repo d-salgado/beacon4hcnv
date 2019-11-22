@@ -214,7 +214,6 @@ def validate_services(func):
             raise BeaconServicesBadRequest(request, request.host, "invalid request: This does not seem a valid HTTP Request.")
         try:
             _, obj = await parse_basic_request_object(request)
-            print(obj)
         except Exception:
             raise BeaconServerError("Could not properly parse the provided Request Body as JSON.")
         try:
@@ -244,7 +243,6 @@ def validate_access_levels(func):
             raise BeaconServicesBadRequest(request, request.host, "invalid request: This does not seem a valid HTTP Request.")
         try:
             _, obj = await parse_basic_request_object(request)
-            print(obj)
         except Exception:
             raise BeaconServerError("Could not properly parse the provided Request Body as JSON.")
         try:
