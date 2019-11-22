@@ -90,8 +90,28 @@ async def variantAnnotations(variant_details):
 #                                         FORMATTING
 # ----------------------------------------------------------------------------------------------------------------------
 
+def transform_record_cnv(record):
+    """Format the record we got from the database to gather the sample and CNV specific information."""
+    response = dict(record)
+    final_response = {}
+    final_response["sampleID"]= response.get("sample_id")
+    final_response["svLength"]= response.get("sv_length")
+    final_response["genotype"]= response.get("genotype")
+    final_response["copyNumberLevel"]= response.get("copyNumberLevel")
+    final_response["readDepth"]= response.get("read_depth")
+    final_response["genotypeLikelihood"]= response.get("genotype_likelihood")
+    final_response["extraInfo"]= response.get("extra_info")
+    final_response["tissue"]= response.get("tissue")
+    final_response["sex"]= response.get("sex")
+    final_response["age"]= response.get("age")
+    final_response["disease"]= response.get("disease")
+    final_response["sampleDescription"]= response.get("sample_description")
 
-async def transform_record(db_pool, record):
+    return final_response
+                            
+
+
+async def transform_record_dataset(db_pool, record):
     """Format the record we got from the database to adhere to the response schema."""
 
     # Before creating the final dict, we want to get the stable_id of the dataset from the DB
@@ -124,24 +144,22 @@ async def transform_record(db_pool, record):
     final_response["frequency"] = 0 if response.get("frequency") is None else float(round(response.pop("frequency"), 4))
     final_response["numVariants"] = 0 if response.get("num_variants") is None else response.pop("num_variants")
     final_response["info"] = {"accessType": dict(extra_record).pop("access_type"),
-                              "matchingSampleCount": 0 if response.get("matching_sample_cnt") is None else response.pop("matching_sample_cnt"),
-                              "cnvInfo": {
-                                "svLength": response.get("sv_length"),
-                                "genotype": response.get("genotype"),
-                                "copyNumberLevel": response.get("copyNumberLevel"),
-                                "readDepth": response.get("read_depth"),
-                                "genotypeLikelihood": response.get("genotype_likelihood"),
-                                "extraInfo": response.get("extra_info"),
-                                },
-                              "sampleInfo": {
-                                "sampleID": response.get("sample_id"),
-                                "tissue": response.get("tissue"),
-                                "sex": response.get("sex"),
-                                "age": response.get("age"),
-                                "disease": response.get("disease"),
-                                "sampleDescription": response.get("sample_description")
-                                }
-                              }
+                              "matchingSampleCount": 0 if response.get("matching_sample_cnt") is None else response.pop("matching_sample_cnt")}
+    # final_response["cnvInfo"] = {
+    #                             "svLength": response.get("sv_length"),
+    #                             "genotype": response.get("genotype"),
+    #                             "copyNumberLevel": response.get("copyNumberLevel"),
+    #                             "readDepth": response.get("read_depth"),
+    #                             "genotypeLikelihood": response.get("genotype_likelihood"),
+    #                             "extraInfo": response.get("extra_info"),
+    #                             "sampleID": response.get("sample_id"),
+    #                             "tissue": response.get("tissue"),
+    #                             "sex": response.get("sex"),
+    #                             "age": response.get("age"),
+    #                             "disease": response.get("disease"),
+    #                             "sampleDescription": response.get("sample_description")
+    #                             }
+                              
     final_response["datasetHandover"] = datasetHandover(dataset_name)
     
     return final_response
@@ -176,7 +194,6 @@ def transform_misses(record):
 async def fetch_resulting_datasets(db_pool, processed_request, misses=False, accessible_missing=None, valid_datasets=None):
     """Find datasets based on filter parameters.
     """
-    print("Inside fetch_resulting_datasets\n")
     async with db_pool.acquire(timeout=180) as connection:
         datasets = []
         try: 
@@ -192,7 +209,6 @@ async def fetch_resulting_datasets(db_pool, processed_request, misses=False, acc
                 else:
                     return []
             else:
-                print("\t else")
                 # Gathering the variant related parameters passed in the request
                 assembly_id = '' if not processed_request.get("assemblyId") else processed_request.get("assemblyId")
                 chromosome = '' if not processed_request.get("referenceName") else processed_request.get("referenceName") 
@@ -253,15 +269,14 @@ async def get_datasets(db_pool, query_parameters, include_dataset, processed_req
     """
     all_datasets = []
     dataset_ids = query_parameters[-2]
-    print("Inside get_datasets\n")
     # Fetch the records of all the hit datasets
     all_datasets = await fetch_resulting_datasets(db_pool, processed_request, valid_datasets=dataset_ids)
     # Then parse the records to be able to separate them by variants, note that we add the hit records already transformed to form the datasetAlleleResponses
     variants_dict = {}
     for record in all_datasets:
-        #important_parameters = map(str, [record.get("chromosome"), record.get("variant_id"), record.get("reference"), record.get("alternate"), record.get("start"), record.get("end"), record.get("variant_type")])
-        #variant_identifier = "|".join(important_parameters)
-        variant_identifier = record.get("data_id")
+        # important_parameters = map(str, [record.get("chromosome"), record.get("variant_id"), record.get("reference"), record.get("alternate"), record.get("start"), record.get("end"), record.get("variant_type")])
+        # variant_identifier = "|".join(important_parameters)
+        variant_identifier = record.get("data_id")  # since in the DB we already have a column that identifies each unique variant, we don't need to do it again
 
         if variant_identifier not in variants_dict.keys():
             variants_dict[variant_identifier] = {}
@@ -275,11 +290,21 @@ async def get_datasets(db_pool, query_parameters, include_dataset, processed_req
                 "end": record.get("end")
             }
             variants_dict[variant_identifier]["datasetAlleleResponses"] = []
-            variants_dict[variant_identifier]["datasetAlleleResponses"].append(await transform_record(db_pool, record))
-        else:
-            variants_dict[variant_identifier]["datasetAlleleResponses"].append(await transform_record(db_pool, record))
+            variants_dict[variant_identifier]["cnvInfo"] = []
 
-    # If  the includeDatasets option is ALL or MISS we have to "create" the miss datasets (which will be tranformed also) and join them to the datasetAlleleResponses
+            # Check if the dataset info is already there, if not add it
+            dataset_info = await transform_record_dataset(db_pool, record)
+            if dataset_info["datasetId"] not in [x["datasetId"] for x in variants_dict[variant_identifier]["datasetAlleleResponses"]]:
+                variants_dict[variant_identifier]["datasetAlleleResponses"].append(dataset_info)
+            # Add the specific info about cnv and its sample (every record)
+            variants_dict[variant_identifier]["cnvInfo"].append(transform_record_cnv(record))
+        else:
+            dataset_info = await transform_record_dataset(db_pool, record)
+            if dataset_info["datasetId"] not in [x["datasetId"] for x in variants_dict[variant_identifier]["datasetAlleleResponses"]]:
+                variants_dict[variant_identifier]["datasetAlleleResponses"].append(dataset_info)
+            variants_dict[variant_identifier]["cnvInfo"].append(transform_record_cnv(record))
+
+    # If the includeDatasets option is ALL or MISS we have to "create" the miss datasets (which will be tranformed also) and join them to the datasetAlleleResponses
     if include_dataset in ['ALL', 'MISS']:
         for variant in variants_dict:
             list_hits = [record["internalId"] for record in variants_dict[variant]["datasetAlleleResponses"]]
@@ -296,6 +321,7 @@ async def get_datasets(db_pool, query_parameters, include_dataset, processed_req
         datasetAlleleResponses = filter_exists(include_dataset, variants_dict[variant]["datasetAlleleResponses"])
         final_variantsFound_element = {
             "variantDetails": variants_dict[variant]["variantDetails"],
+            "cnvInfo": variants_dict[variant]["cnvInfo"],
             "datasetAlleleResponses": datasetAlleleResponses,
             "variantAnnotations": {
                 "cellBase": cellBase_dict,
