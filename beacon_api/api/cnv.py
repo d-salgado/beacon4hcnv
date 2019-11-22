@@ -94,7 +94,7 @@ async def variantAnnotations(variant_details):
 async def transform_record(db_pool, record):
     """Format the record we got from the database to adhere to the response schema."""
 
-    # Before creating the dict, we want to get the stable_id frm the DB
+    # Before creating the final dict, we want to get the stable_id of the dataset from the DB
     async with db_pool.acquire(timeout=180) as connection:
         try: 
             query = f"""SELECT stable_id, access_type
@@ -108,23 +108,43 @@ async def transform_record(db_pool, record):
 
     response = dict(record)
 
-    for dispensable in ["id", "variant_id", "variant_composite_id", "chromosome", "reference", "alternate", "start", "end", "variant_type"]:
-        response.pop(dispensable)
+    # Remove the dispensable parameters of the response dict if you want to return it directly  
+    # for dispensable in ["data_id", "dataset_id", "reference_genome", "chromosome", "rs_id", "reference", "type"]:
+    #     response.pop(dispensable)
 
+    # Create a final_response dict with the parameters you want to show
+    final_response = {}
     dataset_name = dict(extra_record).pop("stable_id")   
-    response["datasetId"] = dataset_name
-    response["internalId"] = response.pop("dataset_id")
-    response["exists"] = True
-    response["variantCount"] = response.pop("variant_cnt")  
-    response["callCount"] = response.pop("call_cnt") 
-    response["sampleCount"] = response.pop("sample_cnt") 
-    response["frequency"] = 0 if response.get("frequency") is None else float(round(response.pop("frequency"), 4))
-    response["numVariants"] = 0 if response.get("num_variants") is None else response.pop("num_variants")
-    response["info"] = {"accessType": dict(extra_record).pop("access_type"),
-                        "matchingSampleCount": 0 if response.get("matching_sample_cnt") is None else response.pop("matching_sample_cnt")}
-    response["datasetHandover"] = datasetHandover(dataset_name)
+    final_response["datasetId"] = dataset_name
+    final_response["internalId"] = response.pop("dataset_id")
+    final_response["exists"] = True
+    final_response["variantCount"] = '' if response.get("variant_cnt") is None else response.pop("variant_cnt")  
+    final_response["callCount"] = '' if response.get("call_cnt") is None else response.pop("call_cnt") 
+    final_response["sampleCount"] = '' if response.get("sample_cnt") is None else response.pop("sample_cnt") 
+    final_response["frequency"] = 0 if response.get("frequency") is None else float(round(response.pop("frequency"), 4))
+    final_response["numVariants"] = 0 if response.get("num_variants") is None else response.pop("num_variants")
+    final_response["info"] = {"accessType": dict(extra_record).pop("access_type"),
+                              "matchingSampleCount": 0 if response.get("matching_sample_cnt") is None else response.pop("matching_sample_cnt"),
+                              "cnvInfo": {
+                                "svLength": response.get("sv_length"),
+                                "genotype": response.get("genotype"),
+                                "copyNumberLevel": response.get("copyNumberLevel"),
+                                "readDepth": response.get("read_depth"),
+                                "genotypeLikelihood": response.get("genotype_likelihood"),
+                                "extraInfo": response.get("extra_info"),
+                                },
+                              "sampleInfo": {
+                                "sampleID": response.get("sample_id"),
+                                "tissue": response.get("tissue"),
+                                "sex": response.get("sex"),
+                                "age": response.get("age"),
+                                "disease": response.get("disease"),
+                                "sampleDescription": response.get("sample_description")
+                                }
+                              }
+    final_response["datasetHandover"] = datasetHandover(dataset_name)
     
-    return response
+    return final_response
 
 
 def transform_misses(record):
@@ -156,6 +176,7 @@ def transform_misses(record):
 async def fetch_resulting_datasets(db_pool, processed_request, misses=False, accessible_missing=None, valid_datasets=None):
     """Find datasets based on filter parameters.
     """
+    print("Inside fetch_resulting_datasets\n")
     async with db_pool.acquire(timeout=180) as connection:
         datasets = []
         try: 
@@ -171,6 +192,7 @@ async def fetch_resulting_datasets(db_pool, processed_request, misses=False, acc
                 else:
                     return []
             else:
+                print("\t else")
                 # Gathering the variant related parameters passed in the request
                 assembly_id = '' if not processed_request.get("assemblyId") else processed_request.get("assemblyId")
                 chromosome = '' if not processed_request.get("referenceName") else processed_request.get("referenceName") 
@@ -190,11 +212,11 @@ async def fetch_resulting_datasets(db_pool, processed_request, misses=False, acc
 
                 query = f"""SELECT * FROM beacon_all_data_view
                             WHERE dataset_id IN ({valid_datasets}) 
-                            AND assembly_id = '{assembly_id}'
+                            AND reference_genome = '{assembly_id}'
                             AND reference = '{reference}'
                             AND chromosome = '{chromosome}' 
                             AND start >= '{start}'
-                            AND end <= '{end}'
+                            AND "end" <= '{end}'
                             AND (CASE
                                 WHEN nullif('{alternate}', '') IS NOT NULL THEN alternate = '{alternate}' ELSE true
                                 END)
@@ -231,16 +253,15 @@ async def get_datasets(db_pool, query_parameters, include_dataset, processed_req
     """
     all_datasets = []
     dataset_ids = query_parameters[-2]
-
+    print("Inside get_datasets\n")
     # Fetch the records of all the hit datasets
-    all_datasets = await fetch_resulting_datasets(db_pool, processed_request, dataset_ids)
-
+    all_datasets = await fetch_resulting_datasets(db_pool, processed_request, valid_datasets=dataset_ids)
     # Then parse the records to be able to separate them by variants, note that we add the hit records already transformed to form the datasetAlleleResponses
     variants_dict = {}
     for record in all_datasets:
         #important_parameters = map(str, [record.get("chromosome"), record.get("variant_id"), record.get("reference"), record.get("alternate"), record.get("start"), record.get("end"), record.get("variant_type")])
         #variant_identifier = "|".join(important_parameters)
-        variant_identifier = record.get("variant_composite_id")
+        variant_identifier = record.get("data_id")
 
         if variant_identifier not in variants_dict.keys():
             variants_dict[variant_identifier] = {}
