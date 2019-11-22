@@ -31,6 +31,7 @@ services:
       - POSTGRES_USER=beacon_design
       - POSTGRES_PASSWORD=beacon
       - POSTGRES_DB=beacon4hcnv_db
+      - PGUSER=beacon_design  # For restoring users info from the dump
       - PGDATA=/beacon/db-store
     image: postgres:alpine
     hostname: beacon-db
